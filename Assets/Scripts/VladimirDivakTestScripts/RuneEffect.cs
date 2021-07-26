@@ -13,12 +13,12 @@ public enum RuneColor
 public class RuneEffect : MonoBehaviour
 {
     [SerializeField]
-    private Texture[] Runes;
+    private Texture2D[] Runes;
     private Transform _transform;
     private Material _material;
 
-    private string _emissiveColor = "_EmissiveColor";
-    private string _texture = "BaseColorMap";
+    private string _emissiveColor = "Color_0df9faf3d67a48d0a88f2cd033a18af3";
+    private string _texture = "Texture2D_c847c8050ab6461bbc7bc9dd20ac82d1";
 
     public void StartRuneAnimation(RuneColor color, int textureIndex)
     {
@@ -52,7 +52,7 @@ public class RuneEffect : MonoBehaviour
     IEnumerator AnimationRoutine(Color matColor)
     {
         Vector3 startPos = _transform.position;
-        Vector3 endPos = _transform.position + Vector3.up;
+        Vector3 endPos = Camera.main.transform.forward * 0.2f;
 
         Color color = new Color();
 
@@ -60,16 +60,13 @@ public class RuneEffect : MonoBehaviour
         Color endColor = new Color(startColor.r, startColor.g, startColor.b, 0);
 
         float lerpProc = 0;
-
-        _transform.LookAt(Camera.main.transform);
-
         while (lerpProc < 1)
         {
             _transform.position = Vector3.Lerp(startPos, endPos, lerpProc);
             color = Color.Lerp(startColor, endColor, lerpProc);
             _material.SetColor(_emissiveColor,color);
 
-            lerpProc += 2 * Time.deltaTime;
+            lerpProc += 0.25f * Time.deltaTime;
             yield return null;
         }
     }
