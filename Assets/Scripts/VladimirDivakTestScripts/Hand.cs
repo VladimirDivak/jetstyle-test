@@ -1,22 +1,22 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using UnityEngine;
 
-[RequireComponent(typeof(LineRenderer))]
 public class Hand : MonoBehaviour
 {
     [SerializeField]
     private GameObject angleVisualization;
-    private LineRenderer _angleLine;
+    private LineRenderer _uiLine;
+    [SerializeField]
+    private RuneEffect runeEffect;
 
     private Animator _animator;
     private Vector3 _startPosition;
     private Quaternion _startRotation;
     private Transform _transform;
     private Camera _mainCamera;
-    private LineRenderer _line;
 
     private Coroutine C_spellMode;
     private Coroutine C_resetPos;
@@ -25,19 +25,83 @@ public class Hand : MonoBehaviour
 
     public bool isSpellMode { get; private set; }
 
+    private Runes _runes;
+    private Vector3 _runeEffectPos;
+
     void Start()
     {
         _animator = GetComponent<Animator>();
-        _angleLine = angleVisualization.GetComponent<LineRenderer>();
-
-        _line = GetComponent<LineRenderer>();
-        _line.enabled = false;
+        _uiLine = angleVisualization.GetComponent<LineRenderer>();
+        
+        _runes = FindObjectOfType<Runes>();
+        _runes.OnGetRuneEvent += OnGetRune;
 
         _transform = transform;
         _startPosition = _transform.localPosition;
         _startRotation = _transform.localRotation;
 
         _mainCamera = Camera.main;
+    }
+
+    private void OnGetRune(string runeName)
+    {
+        if(runeName == string.Empty)
+        {
+            Debug.LogWarning("такой руны нет");
+        }
+        else
+        {
+            RuneColor runeColor;
+            int runeTextureIndex = 0;
+
+            if(runeName.Contains("fire"))
+                runeColor = RuneColor.Fire;
+            else if(runeName.Contains("air"))
+                runeColor = RuneColor.Air;
+            else if(runeName.Contains("water"))
+                runeColor = RuneColor.Water;
+            else
+                runeColor = RuneColor.Earth;
+
+            switch(runeColor)
+            {
+                case RuneColor.Fire:
+                    if(runeName.Contains("1"))
+                        runeTextureIndex = 0;
+                    else if(runeName.Contains("2"))
+                        runeTextureIndex = 1;
+                    else
+                        runeTextureIndex = 2;
+                break;
+                case RuneColor.Air:
+                    if(runeName.Contains("1"))
+                        runeTextureIndex = 3;
+                    else if(runeName.Contains("2"))
+                        runeTextureIndex = 4;
+                    else
+                        runeTextureIndex = 5;
+                break;
+                case RuneColor.Water:
+                    if(runeName.Contains("1"))
+                        runeTextureIndex = 6;
+                    else if(runeName.Contains("2"))
+                        runeTextureIndex = 7;
+                    else
+                        runeTextureIndex = 8;
+                break;
+                case RuneColor.Earth:
+                    if(runeName.Contains("1"))
+                        runeTextureIndex = 9;
+                    else if(runeName.Contains("2"))
+                        runeTextureIndex = 10;
+                    else
+                        runeTextureIndex = 11;
+                break;
+            }
+
+            var effect = Instantiate(runeEffect, _runeEffectPos, Quaternion.identity);
+            effect.StartRuneAnimation(runeColor, runeTextureIndex);
+        }
     }
 
     public void SetMovingAnimation(bool isMove)
@@ -50,6 +114,7 @@ public class Hand : MonoBehaviour
         if(isActive)
         {
             _animator.enabled = false;
+            _uiLine.enabled = true;
 
             if(C_spellMode != null)
             {
@@ -73,10 +138,12 @@ public class Hand : MonoBehaviour
 
             C_resetPos = StartCoroutine(ResetPosRoutine());
 
-            StringBuilder runeData = new StringBuilder(string.Empty);
+            _runes.GetRune(_runeArray.ToArray());
 
             _runeArray = null;
             _runeArray = new List<Vector2>();
+
+            _uiLine.enabled = false;
         }
     }
 
@@ -88,160 +155,46 @@ public class Hand : MonoBehaviour
 
     private IEnumerator SpellModeRoutine()
     {
-        int xLinesCount = 0;
-        int yLinesCount = 0;
-
-        float lineLenght = 0.2f;
-        
-        int offsetCoef = 90;
-        float maxOffset = ((float)Screen.width / (float)Screen.height) * offsetCoef;
-        
-        var lastMousePos = Input.mousePosition;
-        var startLinePos = MouseWorldPosition();
-        var lastLinePos = MouseWorldPosition();
+        var firstMousePos = Input.mousePosition;
+        var lastMousePos = Vector3.zero;
+        var maxOffsetValue = 50;
 
         _runeArray.Add(Vector2.zero);
 
-        _line.enabled = true;
-        _line.positionCount = 1;
-        _line.SetPosition(_line.positionCount - 1, lastLinePos);
-
-        _angleLine.positionCount = 1;
-        _angleLine.SetPosition(0, startLinePos);
+        _uiLine.positionCount = 1;
+        _uiLine.SetPosition(0, MouseWorldPosition());
 
         int iterations = 0;
-        
-        Vector3 newLinePos = new Vector3();
 
         while(true)
         {
+            var currentMousePos = Input.mousePosition - firstMousePos;
+            var newPoint = new Vector3();
+
             var mouseWorldPos = MouseWorldPosition();
             _transform.position = mouseWorldPos;
 
-            var newMousePos = Input.mousePosition - lastMousePos;
-
-            var newMousePosAps = newMousePos;
-            newMousePosAps.x = Mathf.Abs(newMousePos.x);
-            newMousePosAps.y = Mathf.Abs(newMousePos.y);
-
-            var line1 = new Vector2(lastLinePos.x, lastLinePos.y);
-            var line2 = new Vector2(newMousePos.x, newMousePos.y);
-            var angle = Vector2.Angle(line2, line1);
-
             if(iterations == 10)
             {
-                _angleLine.positionCount++;
-                _angleLine.SetPosition(_angleLine.positionCount - 1, mouseWorldPos);
+                _uiLine.positionCount++;
+                _uiLine.SetPosition(_uiLine.positionCount - 1, mouseWorldPos);
+
+                if(Mathf.Abs(lastMousePos.x - currentMousePos.x) <= maxOffsetValue)
+                    newPoint.x = lastMousePos.x;
+                else
+                    newPoint.x = currentMousePos.x;
+
+                if(Mathf.Abs(lastMousePos.y - currentMousePos.y) <= maxOffsetValue)
+                    newPoint.y = lastMousePos.y;
+                else
+                    newPoint.y = currentMousePos.y;
+
+                _runeArray.Add(newPoint);
+
+                lastMousePos = newPoint;
                 iterations = 0;
             }
 
-            if(newMousePosAps.x >= maxOffset || newMousePosAps.y >= maxOffset)
-            {
-                if((angle >= 15 && angle <= 75) || (angle >= 115 && angle <= 165))
-                {
-                    var lineLocalPosIndex = _line.positionCount;
-
-                    xLinesCount = 0;
-                    yLinesCount = 0;
-
-                    int minusX = 1;
-                    int minusY = 1;
-
-                    if(newMousePos.x < 0) minusX *= -1;
-                    if(newMousePos.y < 0) minusY *= -1;
-
-                    newLinePos = new Vector3(lastLinePos.x + lineLenght * minusX / 2,
-                        lastLinePos.y + lineLenght * minusY / 2,
-                        lastLinePos.z);
-                    
-                    if(lineLocalPosIndex == _line.positionCount)
-                        _line.positionCount++;
-                    _line.SetPosition(lineLocalPosIndex, newLinePos);
-
-                    _runeArray.Add(new Vector2(newLinePos.x - startLinePos.x, newLinePos.y - startLinePos.y));
-
-                    lastMousePos = Input.mousePosition;
-                    lastLinePos = newLinePos;
-
-                    continue;
-                }
-
-                if(newMousePosAps.x >= maxOffset && xLinesCount < 2)
-                {
-                    if(xLinesCount == 1)
-                    {
-                        if(newMousePos.x < 0) lineLenght *= -1;
-                        newLinePos = new Vector3(lastLinePos.x + lineLenght, lastLinePos.y, lastLinePos.z);
-                        _line.SetPosition(_line.positionCount - 1, newLinePos);
-
-                        _runeArray.Remove(_runeArray.Last());
-                        _runeArray.Add(new Vector2(newLinePos.x - startLinePos.x, newLinePos.y - startLinePos.y));
-
-                        lastMousePos = Input.mousePosition;
-                        lastLinePos = newLinePos;
-
-                        xLinesCount++;
-                        yLinesCount = 0;
-
-                        lineLenght = Mathf.Abs(lineLenght);
-
-                        continue;                  
-                    }
-                    else
-                    {
-                        if(newMousePos.x < 0) lineLenght *= -1;
-                        newLinePos = new Vector3(lastLinePos.x + lineLenght, lastLinePos.y, lastLinePos.z);
-                    }
-
-                    xLinesCount++;
-                    yLinesCount = 0;
-                }
-
-                else if(newMousePosAps.y >= maxOffset && yLinesCount < 2)
-                {
-                    if(yLinesCount == 1)
-                    {
-                        if(newMousePos.y < 0) lineLenght *= -1;
-                        newLinePos = new Vector3(lastLinePos.x, lastLinePos.y + lineLenght, lastLinePos.z);
-                        _line.SetPosition(_line.positionCount - 1, newLinePos);
-
-                        _runeArray.Remove(_runeArray.Last());
-                        _runeArray.Add(new Vector2(newLinePos.x - startLinePos.x, newLinePos.y - startLinePos.y));
-
-                        lastMousePos = Input.mousePosition;
-                        lastLinePos = newLinePos;
-
-                        yLinesCount++;
-                        xLinesCount = 0;
-
-                        lineLenght = Mathf.Abs(lineLenght);
-
-                        continue;                  
-                    }
-                    else
-                    {
-                        if(newMousePos.y < 0) lineLenght *= -1;
-                        newLinePos = new Vector3(lastLinePos.x, lastLinePos.y + lineLenght, lastLinePos.z);
-                    }
-
-                    yLinesCount++;
-                    xLinesCount = 0;
-                }
-
-                if(xLinesCount < 2 && yLinesCount < 2)
-                {
-                    _line.positionCount++;
-                    _line.SetPosition(_line.positionCount - 1, newLinePos);
-
-                    _runeArray.Add(new Vector2(newLinePos.x - startLinePos.x, newLinePos.y - startLinePos.y));
-
-                    lastMousePos = Input.mousePosition;
-                    lastLinePos = newLinePos;
-                }
-
-                lineLenght = Mathf.Abs(lineLenght);
-            }
-            
             iterations++;
             yield return null;
         }
@@ -251,6 +204,7 @@ public class Hand : MonoBehaviour
     {
         Vector3 currentPosition = _transform.localPosition;
         Quaternion currentRotation = _transform.localRotation;
+        _runeEffectPos = _transform.position;
 
         float lerpProc = 0;
 
@@ -265,9 +219,6 @@ public class Hand : MonoBehaviour
         }
 
         _animator.enabled = true;
-
-        _line.positionCount = 0;
-        _line.enabled = false;
         yield break;
     }
 }
